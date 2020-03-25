@@ -1,0 +1,35 @@
+1. install lua-nginx-module into the nginx, see https://github.com/openresty/lua-nginx-module#installation, or install OpenResty directly(which integrate Nginx, ngx_lua, LuaJIT 2.1, as well as other powerful companion Nginx modules and Lua libraries), see http://openresty.org/en/installation.html
+
+2. install the lua-resty-http dependency module. see https://github.com/pintsized/lua-resty-http/tree/master/lib/resty
+   if using OpenResty, just copy the http.lua and http_headers.lua into the /usr/local/openresty/lualib/resty folder.
+   if using lua-nginx-module, copy the http.lua and http_headers.lua into the dependency resty folder.
+
+3. create 'plugin/otdd' folder in nginx home folder and put the api.lua and var.lua into it.
+
+4. add the following contents into the 'http' section in the nginx.conf
+
+	lua_package_path "${prefix}/plugin/?.lua;;";
+        lua_package_cpath "${prefix}/plugin/?.so;LuaJIT/lib/?.so;;"
+
+5. add the following contents into the 'server' section in the nginx.conf
+
+	rewrite_by_lua_block {
+                local otdd = require "otdd.api"
+                local config = {
+                        switch =  'on',                 -- swith on/off the requests redirection.
+                        interval  = 1,                  -- the timeline gap. in seconds.
+                        dest_ip = '127.0.0.2',      	-- the ip where the requests are redirected to.
+                        dest_port  = '8000',            -- the port where the requests are redirected to.
+                        connect_timeout = 200,          -- the connect timeout(ms) when connect to the dest ip:port.
+                        request_timeout = 5000,         -- the timeout(ms) processing the request.
+                        worker_processes = 2,           -- the actual worker processes of your nginx(if it's configured as auto, it equals to the cpu num).
+                }
+                if config.switch == 'on' then
+                        local status, err = pcall(otdd.process,config)
+                        if not status then
+                                ngx.log(ngx.ERR, "otdd.process error: ", err)
+                        end
+                end
+        }
+
+then requests(randomly chosen) will be redirected to the dest_ip/port serially. 
